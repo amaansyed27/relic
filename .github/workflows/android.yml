@@ -27,11 +27,12 @@ jobs:
         with:
           gradle-version: '9.5.0'
 
-      - name: Android SDK
-        uses: android-actions/setup-android@v3
-
+      # ubuntu-latest already provides an Android SDK. The third-party
+      # setup-android action attempts to install a removed SDK "tools" package.
       - name: Install Android 37 SDK
-        run: sdkmanager "platforms;android-37" "build-tools;36.0.0"
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-37" "build-tools;36.0.0"
 
       - name: Generate official Gradle wrapper
         run: gradle wrapper --gradle-version 9.5.0 --distribution-type bin
