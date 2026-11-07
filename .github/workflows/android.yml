@@ -1,0 +1,65 @@
+name: Android foundation
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Gradle 9.5.0
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.5.0'
+
+      - name: Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android 37 SDK
+        run: sdkmanager "platforms;android-37" "build-tools;36.0.0"
+
+      - name: Generate official Gradle wrapper
+        run: gradle wrapper --gradle-version 9.5.0 --distribution-type bin
+
+      - name: Build and unit test
+        run: |
+          chmod +x gradlew
+          ./gradlew :app:assembleDebug :app:testDebugUnitTest --stacktrace
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: relic-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+      # GitHub API tools cannot create binary jar files. Generate the official
+      # wrapper and publish it only AFTER a successful build. This executes at
+      # most once because subsequent runs find the wrapper tracked by Git.
+      - name: Publish reproducible Gradle wrapper
+        if: success()
+        run: |
+          if git ls-tree -r HEAD --name-only | grep -qx 'gradle/wrapper/gradle-wrapper.jar'; then
+            echo "Gradle wrapper already tracked."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add gradlew gradlew.bat gradle/wrapper/gradle-wrapper.jar gradle/wrapper/gradle-wrapper.properties
+          git commit -m "build: check in verified Gradle 9.5 wrapper"
+          git push origin HEAD:main
